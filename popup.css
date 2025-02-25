@@ -1,0 +1,64 @@
+body {
+  width: 500px;
+  height: 400px;
+  margin: 0;
+  padding: 10px;
+}
+
+.container {
+  overflow: auto;
+  height: 100%;
+}
+
+#result-content {
+  font-family: monospace;
+  font-size: 12px;
+  border-top: 1px solid #ccc;
+  margin-top: 10px;
+  padding-top: 10px;
+  line-height: 1.4;
+}
+
+.json-entry {
+  margin-left: 15px;
+}
+
+.json-key {
+  color: #0074d9;
+  font-weight: bold;
+}
+
+.json-value {
+  color: #2ecc40;
+}
+
+.json-value .json-entry {
+  padding-left: 10px;
+  border-left: 1px dotted #ccc;
+}
+
+.json-value string {
+  color: #ff851b;
+}
+
+.json-value number {
+  color: #ff4136;
+}
+
+.json-value boolean {
+  color: #b10dc9;
+}
+
+.json-value null {
+  color: #999;
+  font-style: italic;
+}
+
+#status {
+  color: #666;
+  font-style: italic;
+}
+
+#error {
+  color: #cc0000;
+}
