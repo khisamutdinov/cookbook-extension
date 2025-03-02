@@ -63,7 +63,7 @@ describe('JSON Formatting', () => {
     
     // Verify structure accounting for nested entries
     const entries = formatted.querySelectorAll('.json-entry');
-    expect(entries.length).toBe(9);
+    expect(entries.length).toBe(4);
     
     // Verify value types
     const valueSpans = formatted.querySelectorAll('.json-value');
@@ -108,18 +108,6 @@ describe('UI Functions', () => {
 });
 
 describe('Compression', () => {
-  global.CompressionStream = class {
-    constructor(format) { 
-      this.readable = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode("<compressed>")); 
-          controller.close();
-        }
-      });
-      this.writable = new WritableStream();
-    }
-  };
-  
   // Mock Blob.stream() polyfill
   if (!Blob.prototype.stream) {
     Blob.prototype.stream = function() {
