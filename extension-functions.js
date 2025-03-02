@@ -39,6 +39,9 @@ export async function processContent(tab, htmlContent) {
 
   // First try the health endpoint to verify token works
   try {
+    // Compress the HTML content before sending
+    const compressedHtml = await compressHtml(htmlContent);
+
     // Test with health endpoint first
     const healthResponse = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
@@ -73,7 +76,7 @@ export async function processContent(tab, htmlContent) {
           },
           body: {
             url: tab.url,
-            html: htmlContent,
+            html: compressedHtml, // Send compressed HTML
             title: tab.title,
           },
         },
@@ -168,4 +171,44 @@ export function formatJson(obj) {
   }
 
   return div;
+}
+
+// Add this function to extension-functions.js
+export async function compressHtml(htmlContent) {
+  // Convert to UTF-8 string
+  const encoder = new TextEncoder();
+  const data = encoder.encode(htmlContent);
+
+  // Compress using CompressionStream (GZIP)
+  const compressedStream = new Blob([data])
+    .stream()
+    .pipeThrough(new CompressionStream("gzip"));
+
+  // Convert compressed stream to Blob
+  const compressedBlob = await new Response(compressedStream).blob();
+
+  // Convert Blob to Base64
+  const base64 = await blobToBase64(compressedBlob);
+
+  console.log(`Original size: ${htmlContent.length} bytes`);
+  console.log(`Compressed size: ${base64.length} bytes`);
+  console.log(
+    `Compression ratio: ${((base64.length / htmlContent.length) * 100).toFixed(2)}%`,
+  );
+
+  return base64;
+}
+
+// Helper function to convert Blob to Base64
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Remove the "data:application/octet-stream;base64," part
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
