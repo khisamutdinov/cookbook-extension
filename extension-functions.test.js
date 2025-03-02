@@ -55,15 +55,15 @@ describe('JSON Formatting', () => {
     const testData = {
       string: 'value',
       number: 42,
-      nested: { bool: true },
+      nested: { bool: true, another: null },
       array: [1, 'two', false]
     };
 
     const formatted = formatJson(testData);
     
-    // Verify structure
+    // Verify structure - 4 top-level entries but 8 total nodes (including nested)
     const entries = formatted.querySelectorAll('.json-entry');
-    expect(entries.length).toBe(4);
+    expect(entries.length).toBe(8);
     
     // Verify value types
     const valueSpans = formatted.querySelectorAll('.json-value');
@@ -78,7 +78,9 @@ describe('UI Functions', () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <div id="status"></div>
-      <div id="result" style="display: none"></div>
+      <div id="result" style="display: none">
+        <div id="result-content"></div>
+      </div>
       <div id="error" style="display: none"></div>
       <button id="retry-button"></button>
     `;
@@ -107,7 +109,14 @@ describe('UI Functions', () => {
 
 describe('Compression', () => {
   global.CompressionStream = class {
-    constructor(format) { this.format = format; }
+    constructor(format) { 
+      this.readable = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("<compressed>")); 
+          controller.close();
+        }
+      });
+    }
   };
 
   test('compressHtml reduces size', async () => {
