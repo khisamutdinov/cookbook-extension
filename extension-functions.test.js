@@ -1,4 +1,3 @@
-// extension-functions.test.js
 import {
   extractPageContent,
   processContent,
@@ -126,8 +125,8 @@ describe('extractPageContent', () => {
             ];
           } else if (selector === "img") {
             return [
-              { 
-                alt: "Test image", 
+              {
+                alt: "Test image",
                 replaceWith: jest.fn()
               }
             ];
@@ -148,10 +147,10 @@ describe('extractPageContent', () => {
     document.cloneNode = jest.fn().mockImplementation(() => {
       throw new Error('Test error');
     });
-    
+
     console.error = jest.fn();
     const result = extractPageContent();
-    
+
     expect(result).toBeNull();
     expect(console.error).toHaveBeenCalled();
   });
@@ -160,9 +159,9 @@ describe('extractPageContent', () => {
 describe('compressHtml', () => {
   test('should compress HTML content', async () => {
     console.log = jest.fn();
-    
+
     const result = await compressHtml('<html><body>Test Content</body></html>');
-    
+
     expect(result).toBe('dGVzdA==');
     expect(console.log).toHaveBeenCalledTimes(3);
   });
@@ -192,13 +191,13 @@ describe('processContent', () => {
     });
 
     global.showResult = jest.fn();
-    
+
     const tab = { url: 'https://example.com', title: 'Example' };
     const htmlContent = '<html><body>Test Content</body></html>';
-    
+
     await processContent(tab, htmlContent);
-    
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(2);
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(1);
     expect(console.error).not.toHaveBeenCalled();
   });
 
@@ -216,12 +215,12 @@ describe('processContent', () => {
     });
 
     global.showError = jest.fn();
-    
+
     const tab = { url: 'https://example.com', title: 'Example' };
     const htmlContent = '<html><body>Test Content</body></html>';
-    
+
     await processContent(tab, htmlContent);
-    
+
     expect(console.error).toHaveBeenCalled();
   });
 
@@ -242,12 +241,12 @@ describe('processContent', () => {
     });
 
     global.showError = jest.fn();
-    
+
     const tab = { url: 'https://example.com', title: 'Example' };
     const htmlContent = '<html><body>Test Content</body></html>';
-    
+
     await processContent(tab, htmlContent);
-    
+
     expect(console.error).toHaveBeenCalled();
   });
 
@@ -268,12 +267,12 @@ describe('processContent', () => {
     });
 
     global.showError = jest.fn();
-    
+
     const tab = { url: 'https://example.com', title: 'Example' };
     const htmlContent = '<html><body>Test Content</body></html>';
-    
+
     await processContent(tab, htmlContent);
-    
+
     expect(console.error).toHaveBeenCalled();
   });
 });
@@ -284,7 +283,7 @@ describe('showResult', () => {
     const resultElement = { style: { display: 'none' } };
     const errorElement = { style: { display: 'block' } };
     const resultContent = { innerHTML: 'old content', appendChild: jest.fn() };
-    
+
     document.getElementById.mockImplementation((id) => {
       if (id === 'status') return statusElement;
       if (id === 'result') return resultElement;
@@ -292,9 +291,9 @@ describe('showResult', () => {
       if (id === 'result-content') return resultContent;
       return null;
     });
-    
+
     showResult({ test: 'data' });
-    
+
     expect(statusElement.style.display).toBe('none');
     expect(errorElement.style.display).toBe('none');
     expect(resultElement.style.display).toBe('block');
@@ -309,7 +308,7 @@ describe('showError', () => {
     const resultElement = { style: { display: 'block' } };
     const errorElement = { style: { display: 'none' }, textContent: '' };
     const retryButton = { style: { display: 'none' } };
-    
+
     document.getElementById.mockImplementation((id) => {
       if (id === 'status') return statusElement;
       if (id === 'result') return resultElement;
@@ -317,9 +316,9 @@ describe('showError', () => {
       if (id === 'retry-button') return retryButton;
       return null;
     });
-    
+
     showError('Test error message');
-    
+
     expect(statusElement.style.display).toBe('none');
     expect(resultElement.style.display).toBe('none');
     expect(errorElement.style.display).toBe('block');
@@ -363,7 +362,7 @@ describe('formatJson', () => {
     // Verify that document.createElement was called with 'div'
     expect(document.createElement).toHaveBeenCalledWith('div');
   });
-  
+
   test('should handle primitive values correctly', () => {
     // Reset mocks
     jest.clearAllMocks();
@@ -373,7 +372,7 @@ describe('formatJson', () => {
       className: '',
       appendChild: jest.fn()
     };
-    
+
     let mockSpan;
 
     document.createElement.mockImplementation((tag) => {
@@ -389,13 +388,13 @@ describe('formatJson', () => {
       }
       return {};
     });
-    
+
     // Test string handling
     formatJson('test string');
     expect(mockDiv.appendChild).toHaveBeenCalled();
     expect(mockSpan.className).toBe('string');
     expect(mockSpan.textContent).toBe('test string');
-    
+
     // Reset mocks for the next test
     jest.clearAllMocks();
     mockDiv.appendChild.mockClear();

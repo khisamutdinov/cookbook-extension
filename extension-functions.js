@@ -1,4 +1,3 @@
-// extension-functions.js
 export function extractPageContent() {
   try {
     console.log("CEX: Processing html...");
@@ -41,25 +40,6 @@ export async function processContent(tab, htmlContent) {
   try {
     // Compress the HTML content before sending
     const compressedHtml = await compressHtml(htmlContent);
-
-    // Test with health endpoint first
-    const healthResponse = await new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        {
-          action: "makeApiCall",
-          url: "https://cookbook-577683305271.us-west1.run.app/actuator/info",
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "X-Extension-ID": extensionId,
-            "X-Request-ID": requestId,
-          },
-        },
-        resolve,
-      );
-    });
-
-    console.log("Health check response:", healthResponse);
 
     // Now try the recipe endpoint
     const response = await new Promise((resolve) => {
