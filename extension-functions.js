@@ -1,3 +1,6 @@
+// extension-functions.js
+import { getAuthToken } from "./auth-service.js";
+
 export function extractPageContent() {
   try {
     console.log("CEX: Processing html...");
@@ -23,7 +26,6 @@ export function extractPageContent() {
     });
 
     console.log("CEX: HTML is ready");
-    // console.log(cloneDoc.outerHTML);
     return cloneDoc.outerHTML;
   } catch (error) {
     console.error("Error in content script:", error);
@@ -32,16 +34,18 @@ export function extractPageContent() {
 }
 
 export async function processContent(tab, htmlContent) {
-  const token = "";
   const extensionId = chrome.runtime.id;
   const requestId = `${extensionId}-${Date.now()}`;
 
-  // First try the health endpoint to verify token works
   try {
+    // Get authentication token
+    const token = await getAuthToken();
+    console.log("Got auth token for API request");
+
     // Compress the HTML content before sending
     const compressedHtml = await compressHtml(htmlContent);
 
-    // Now try the recipe endpoint
+    // Make the API request
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
@@ -50,13 +54,13 @@ export async function processContent(tab, htmlContent) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Authorization": `Bearer ${token}`,
             "X-Extension-ID": extensionId,
             "X-Request-ID": requestId,
           },
           body: {
             url: tab.url,
-            html: compressedHtml, // Send compressed HTML
+            html: compressedHtml,
             title: tab.title,
           },
         },

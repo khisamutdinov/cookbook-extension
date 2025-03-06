@@ -9,25 +9,39 @@
         <div class="container">
             <header>
                 <h2>Recipe Extractor</h2>
+                <div id="auth-container" class="auth-container">
+                    <!-- Auth state will be rendered here -->
+                </div>
             </header>
 
-            <div id="status" class="status-container">
-                <div class="spinner"></div>
-                <p>Computing...</p>
-            </div>
-
-            <div id="result" style="display: none" class="result-container">
-                <h3>Extracted Recipe:</h3>
-                <div id="result-content" class="json-result"></div>
-            </div>
-
-            <div id="error" style="display: none" class="error-container"></div>
-
-            <footer>
-                <button id="retry-button" style="display: none">
-                    Try Again
+            <div id="auth-required" style="display: none;" class="auth-required">
+                <p>Please sign in to use this extension</p>
+                <button id="sign-in-button" class="sign-in-button">
+                    <img src="google-icon.svg" alt="Google" class="google-icon" />
+                    Sign in with Google
                 </button>
-            </footer>
+                <div id="auth-error" class="auth-error" style="display: none;"></div>
+            </div>
+
+            <div id="content-container">
+                <div id="status" class="status-container">
+                    <div class="spinner"></div>
+                    <p>Computing...</p>
+                </div>
+
+                <div id="result" style="display: none" class="result-container">
+                    <h3>Extracted Recipe:</h3>
+                    <div id="result-content" class="json-result"></div>
+                </div>
+
+                <div id="error" style="display: none" class="error-container"></div>
+
+                <footer>
+                    <button id="retry-button" style="display: none">
+                        Try Again
+                    </button>
+                </footer>
+            </div>
         </div>
 
         <!-- Use type="module" to enable import/export -->
