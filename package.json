@@ -9,6 +9,12 @@
     "jest-environment-jsdom": "^29.7.0"
   },
   "jest": {
-    "testEnvironment": "jsdom"
+    "testEnvironment": "jsdom",
+    "testEnvironmentOptions": {
+      "resources": "usable"
+    },
+    "setupFiles": [
+      "./test-setup.js"
+    ]
   }
 }
