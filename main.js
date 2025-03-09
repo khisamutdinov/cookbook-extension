@@ -9,8 +9,9 @@ import {
   onAuthStateChanged,
   signInWithGoogle,
   signOut,
-  isAuthenticated
-} from "./auth-service.js";
+  isAuthenticated,
+  loadAuthData
+} from "./google-auth.js";
 
 // DOM Elements we'll need to reference
 let authRequiredElement;
@@ -23,8 +24,7 @@ let resultElement;
 let errorElement;
 let retryButton;
 
-// Initialize the app
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // Get references to DOM elements
   authRequiredElement = document.getElementById("auth-required");
   contentContainerElement = document.getElementById("content-container");
@@ -43,7 +43,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize auth state
-  onAuthStateChanged(handleAuthStateChanged);
+  showLoadingState("Checking authentication...");
+  try {
+    // Try to load existing auth data
+    await loadAuthData();
+    // Set up auth state listener
+    onAuthStateChanged(handleAuthStateChanged);
+  } catch (error) {
+    console.error("Failed to initialize authentication:", error);
+    showUnauthenticatedUI();
+  }
 });
 
 /**
@@ -62,14 +71,51 @@ function handleAuthStateChanged(user) {
 }
 
 /**
+ * Display temporary loading state
+ * @param {string} message - Loading message to display
+ */
+function showLoadingState(message) {
+  authRequiredElement.style.display = "none";
+  contentContainerElement.style.display = "none";
+
+  const loadingElement = document.createElement("div");
+  loadingElement.id = "auth-loading";
+  loadingElement.className = "auth-loading";
+  loadingElement.innerHTML = `
+    <div class="spinner"></div>
+    <p>${message}</p>
+  `;
+
+  // Remove existing loading element if it exists
+  const existingLoadingElement = document.getElementById("auth-loading");
+  if (existingLoadingElement) {
+    existingLoadingElement.remove();
+  }
+
+  document.querySelector(".container").appendChild(loadingElement);
+}
+
+/**
+ * Remove loading state
+ */
+function removeLoadingState() {
+  const loadingElement = document.getElementById("auth-loading");
+  if (loadingElement) {
+    loadingElement.remove();
+  }
+}
+
+/**
  * Display the authenticated UI state
  * @param {Object} user - The authenticated user object
  */
 function showAuthenticatedUI(user) {
+  removeLoadingState();
+
   // Show the user profile in the header
   authContainerElement.innerHTML = `
     <div class="user-profile">
-      <img src="${user.avatar}" alt="${user.name}" class="user-avatar" />
+      <img src="${user.avatar}" alt="" class="user-avatar">
       <span class="user-name">${user.name}</span>
       <button id="sign-out-button" class="sign-out-button">Sign out</button>
     </div>
@@ -87,6 +133,8 @@ function showAuthenticatedUI(user) {
  * Display the unauthenticated UI state
  */
 function showUnauthenticatedUI() {
+  removeLoadingState();
+
   // Clear user profile from header
   authContainerElement.innerHTML = '';
 
@@ -120,10 +168,11 @@ async function handleSignIn() {
   authErrorElement.style.display = "none";
 
   try {
-    // Attempt to sign in (using our stub implementation)
+    // Attempt to sign in using Chrome Identity API
     await signInWithGoogle();
     // The auth state listener will update the UI
   } catch (error) {
+    console.error("Sign in error:", error);
     // Show error message
     authErrorElement.textContent = error.message || "Failed to sign in. Please try again.";
     authErrorElement.style.display = "block";
@@ -142,6 +191,7 @@ async function handleSignIn() {
  */
 async function handleSignOut() {
   try {
+    showLoadingState("Signing out...");
     await signOut();
     // The auth state listener will update the UI
   } catch (error) {

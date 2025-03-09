@@ -1,5 +1,5 @@
 // extension-functions.js
-import { getAuthToken } from "./auth-service.js";
+import { getAuthToken } from "./google-auth.js";
 
 export function extractPageContent() {
   try {
@@ -71,10 +71,18 @@ export async function processContent(tab, htmlContent) {
     console.log("Recipe endpoint response:", response);
 
     if (!response.success) {
-      throw new Error(response.error || "Recipe request failed");
+      if (response.error && response.error.includes("authentication")) {
+        throw new Error("Authentication error. Please sign in again.");
+      } else {
+        throw new Error(response.error || "Recipe request failed");
+      }
     }
 
     const { data } = response;
+
+    if (data.status === 401 || data.status === 403) {
+      throw new Error("Authentication error. Please sign in again.");
+    }
 
     if (data.status !== 200) {
       throw new Error(
