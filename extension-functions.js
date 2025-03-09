@@ -167,6 +167,12 @@ export function formatJson(obj) {
 
 // Add this function to extension-functions.js
 export async function compressHtml(htmlContent) {
+  // Check if CompressionStream API is available
+  if (typeof CompressionStream === 'undefined') {
+    console.error('CompressionStream API not supported');
+    throw new Error('Your browser does not support compression');
+  }
+
   // Convert to UTF-8 string
   const encoder = new TextEncoder();
   const data = encoder.encode(htmlContent);

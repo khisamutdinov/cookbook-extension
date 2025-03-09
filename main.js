@@ -10,7 +10,7 @@ import {
   signInWithGoogle,
   signOut,
   isAuthenticated,
-  loadAuthData
+  
 } from "./google-auth.js";
 
 // DOM Elements we'll need to reference

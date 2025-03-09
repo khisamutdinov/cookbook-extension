@@ -1,11 +1,16 @@
 // token-storage.js - Secure token storage and management
 
-/**
- * Encryption key (normally generated for each extension installation)
- * In a real implementation, you would generate and store this securely
- * For demonstration, we're using a static key
- */
-const ENCRYPTION_KEY = crypto.getRandomValues(new Uint8Array(32));
+let ENCRYPTION_KEY;
+
+// Get encryption key from storage
+chrome.storage.local.get(['auth_encryption_key'], (result) => {
+  if (result.auth_encryption_key) {
+    ENCRYPTION_KEY = new Uint8Array(result.auth_encryption_key);
+  } else {
+    console.error('No encryption key found');
+    throw new Error('Missing encryption key');
+  }
+});
 
 /**
  * Token storage keys
@@ -378,11 +383,10 @@ export async function setupTokenRefresh() {
       const refreshTime = timeRemaining - 300;
       console.log(`Scheduling token refresh in ${refreshTime} seconds`);
 
-      // In a real extension, you'd want to use alarms for better reliability
-      setTimeout(async () => {
-        console.log('Executing scheduled token refresh');
-        await refreshAccessToken();
-      }, refreshTime * 1000);
+      // Schedule refresh using chrome.alarms
+      chrome.alarms.create('manual-token-refresh', {
+        delayInMinutes: Math.max(1, refreshTime / 60) // Minimum 1 minute
+      });
     }
   }
 }
