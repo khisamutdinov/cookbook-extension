@@ -23,6 +23,7 @@ let statusElement;
 let resultElement;
 let errorElement;
 let retryButton;
+let tokenRefreshNotification;
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Get references to DOM elements
@@ -35,18 +36,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   resultElement = document.getElementById("result");
   errorElement = document.getElementById("error");
   retryButton = document.getElementById("retry-button");
+  tokenRefreshNotification = document.getElementById("token-refresh-notification");
 
-  // Set up listeners
+  // Set up event listeners
   signInButton.addEventListener("click", handleSignIn);
   retryButton.addEventListener("click", () => {
     location.reload();
   });
 
+  // Listen for token refresh events from background script
+  chrome.runtime.onMessage.addListener(handleBackgroundMessages);
+
   // Initialize auth state
   showLoadingState("Checking authentication...");
   try {
     // Try to load existing auth data
-    await loadAuthData();
+    await loadAuthState();
     // Set up auth state listener
     onAuthStateChanged(handleAuthStateChanged);
   } catch (error) {
@@ -54,6 +59,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     showUnauthenticatedUI();
   }
 });
+
+/**
+ * Handle messages from background script
+ */
+function handleBackgroundMessages(message, sender, sendResponse) {
+  if (message.action === 'token-refreshed') {
+    // Show a notification that token was refreshed
+    showTokenRefreshNotification("Authentication refreshed automatically");
+    sendResponse({ received: true });
+    return true;
+  }
+
+  if (message.action === 'auth-invalid') {
+    // Authentication is invalid, force re-login
+    showError("Your session has expired. Please sign in again.");
+    signOut().catch(console.error);
+    sendResponse({ received: true });
+    return true;
+  }
+}
+
+/**
+ * Show a temporary notification for token refresh
+ * @param {string} message - The notification message
+ */
+function showTokenRefreshNotification(message) {
+  if (!tokenRefreshNotification) return;
+
+  tokenRefreshNotification.textContent = message;
+  tokenRefreshNotification.style.display = "block";
+
+  // Hide after 5 seconds
+  setTimeout(() => {
+    tokenRefreshNotification.style.display = "none";
+  }, 5000);
+}
 
 /**
  * Handle authentication state changes
@@ -64,9 +105,25 @@ function handleAuthStateChanged(user) {
     // User is authenticated
     showAuthenticatedUI(user);
     initRecipeExtraction();
+
+    // Notify background script of auth state change
+    chrome.runtime.sendMessage({
+      action: 'auth-state-changed',
+      isAuthenticated: true
+    }).catch(error => {
+      console.error('Failed to notify background of auth state:', error);
+    });
   } else {
     // User is not authenticated
     showUnauthenticatedUI();
+
+    // Notify background script of auth state change
+    chrome.runtime.sendMessage({
+      action: 'auth-state-changed',
+      isAuthenticated: false
+    }).catch(error => {
+      console.error('Failed to notify background of auth state:', error);
+    });
   }
 }
 

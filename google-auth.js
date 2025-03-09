@@ -1,4 +1,14 @@
-// google-auth.js - OAuth integration using Chrome Identity API
+// google-auth.js - OAuth integration using Chrome Identity API with secure token storage
+
+import {
+  storeAuthTokens,
+  getAccessToken,
+  getUserData,
+  hasValidToken,
+  clearAuthData,
+  refreshAccessToken,
+  setupTokenRefresh
+} from './token-storage.js';
 
 // Store the authenticated user info
 let currentUser = null;
@@ -14,6 +24,8 @@ const SCOPES = [
 ];
 // Authentication URL
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/auth';
+// Token URL for refresh flow
+const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 // Redirect URL must match one registered in the Google Developer Console
 const REDIRECT_URL = chrome.identity.getRedirectURL();
 
@@ -48,12 +60,27 @@ function notifyListeners(user) {
  */
 export async function signInWithGoogle() {
   try {
+    // Check if we already have a valid token
+    if (await hasValidToken()) {
+      // Get cached user data
+      const userData = await getUserData();
+      if (userData) {
+        currentUser = userData;
+        notifyListeners(currentUser);
+        return userData;
+      }
+    }
+
     // Build the OAuth consent URL
     const authURL = new URL(AUTH_URL);
     authURL.searchParams.append('client_id', CLIENT_ID);
-    authURL.searchParams.append('response_type', 'token');
+    authURL.searchParams.append('response_type', 'code');
     authURL.searchParams.append('redirect_uri', REDIRECT_URL);
     authURL.searchParams.append('scope', SCOPES.join(' '));
+    // Add offline access to get a refresh token
+    authURL.searchParams.append('access_type', 'offline');
+    // Force approval prompt to ensure we get a refresh token
+    authURL.searchParams.append('prompt', 'consent');
 
     // Launch the web auth flow
     const responseUrl = await chrome.identity.launchWebAuthFlow({
@@ -61,14 +88,26 @@ export async function signInWithGoogle() {
       interactive: true
     });
 
-    // Extract the access token from the response URL
-    const accessToken = extractAccessToken(responseUrl);
+    // Extract the authorization code from the response URL
+    const code = extractAuthCode(responseUrl);
+
+    // Exchange the code for tokens
+    const tokenResponse = await exchangeCodeForTokens(code);
 
     // Get user data using the access token
-    const userData = await fetchUserInfo(accessToken);
+    const userData = await fetchUserInfo(tokenResponse.access_token);
 
-    // Store token in Chrome storage for persistence
-    await storeAuthToken(accessToken, userData);
+    // Store tokens securely
+    await storeAuthTokens(
+      tokenResponse.access_token,
+      tokenResponse.refresh_token,
+      tokenResponse.id_token,
+      userData,
+      tokenResponse.expires_in
+    );
+
+    // Setup token refresh
+    await setupTokenRefresh();
 
     // Update current user and notify listeners
     currentUser = userData;
@@ -82,17 +121,46 @@ export async function signInWithGoogle() {
 }
 
 /**
- * Extract access token from the redirect URL
- * @param {string} redirectUrl - The URL containing the access token
- * @returns {string} The access token
+ * Extract authorization code from the redirect URL
+ * @param {string} redirectUrl - The URL containing the code
+ * @returns {string} The authorization code
  */
-function extractAccessToken(redirectUrl) {
-  const tokenMatch = redirectUrl.match(/[#?](.*)/);
-  if (tokenMatch && tokenMatch.length > 1) {
-    const params = new URLSearchParams(tokenMatch[1].replace('#', '?'));
-    return params.get('access_token');
+function extractAuthCode(redirectUrl) {
+  const url = new URL(redirectUrl);
+  const code = url.searchParams.get('code');
+  if (!code) {
+    throw new Error('Failed to extract authorization code from redirect URL');
   }
-  throw new Error('Failed to extract access token from redirect URL');
+  return code;
+}
+
+/**
+ * Exchange authorization code for access and refresh tokens
+ * @param {string} code - The authorization code
+ * @returns {Promise<Object>} Token response
+ */
+async function exchangeCodeForTokens(code) {
+  const tokenRequestBody = new URLSearchParams({
+    code: code,
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT_URL,
+    grant_type: 'authorization_code'
+  });
+
+  const response = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: tokenRequestBody.toString()
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Token exchange failed: ${errorData.error || response.statusText}`);
+  }
+
+  return await response.json();
 }
 
 /**
@@ -121,51 +189,85 @@ async function fetchUserInfo(accessToken) {
 }
 
 /**
- * Store authentication data in Chrome storage
- * @param {string} token - The OAuth access token
- * @param {Object} userData - User profile data
- */
-async function storeAuthToken(token, userData) {
-  await chrome.storage.local.set({
-    'auth_token': token,
-    'auth_user': userData,
-    'auth_time': Date.now()
-  });
-}
-
-/**
- * Load authentication data from Chrome storage
- * @returns {Promise<Object|null>} Authentication data or null
- */
-export async function loadAuthData() {
-  const data = await chrome.storage.local.get(['auth_token', 'auth_user', 'auth_time']);
-
-  if (data.auth_token && data.auth_user) {
-    // Check if token has expired (tokens typically last 1 hour)
-    const tokenAge = Date.now() - (data.auth_time || 0);
-    const TOKEN_LIFETIME = 3600 * 1000; // 1 hour in milliseconds
-
-    if (tokenAge < TOKEN_LIFETIME) {
-      currentUser = data.auth_user;
-      notifyListeners(currentUser);
-      return data;
-    } else {
-      // Token expired, clear storage
-      await chrome.storage.local.remove(['auth_token', 'auth_user', 'auth_time']);
-    }
-  }
-
-  return null;
-}
-
-/**
  * Sign out the current user
  * @returns {Promise<void>}
  */
 export async function signOut() {
-  await chrome.storage.local.remove(['auth_token', 'auth_user', 'auth_time']);
-  currentUser = null;
-  notifyListeners(null);
+  try {
+    // Get the access token
+    const token = await getAccessToken().catch(() => null);
+
+    // Clear stored auth data
+    await clearAuthData();
+
+    // If we have a token, revoke it with Google
+    if (token) {
+      // Revoke token - we do this even if it fails
+      try {
+        await revokeToken(token);
+      } catch (error) {
+        console.warn('Failed to revoke token:', error);
+      }
+    }
+
+    // Update state
+    currentUser = null;
+    notifyListeners(null);
+  } catch (error) {
+    console.error('Sign out error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Revoke an access token with Google
+ * @param {string} token - The access token to revoke
+ * @returns {Promise<void>}
+ */
+async function revokeToken(token) {
+  const response = await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`, {
+    method: 'GET'
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to revoke token');
+  }
+}
+
+/**
+ * Load authentication state from secure storage
+ * @returns {Promise<void>}
+ */
+export async function loadAuthState() {
+  try {
+    // Check if we have a valid token
+    if (await hasValidToken()) {
+      // Get user data
+      const userData = await getUserData();
+      if (userData) {
+        currentUser = userData;
+        notifyListeners(currentUser);
+
+        // Setup token refresh
+        await setupTokenRefresh();
+        return true;
+      }
+    } else if (await getUserData()) {
+      // We have user data but token is expired, try to refresh
+      const success = await refreshAccessToken();
+      if (success) {
+        const userData = await getUserData();
+        currentUser = userData;
+        notifyListeners(currentUser);
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to load auth state:', error);
+    return false;
+  }
 }
 
 /**
@@ -189,14 +291,15 @@ export function isAuthenticated() {
  * @returns {Promise<string>} Access token
  */
 export async function getAuthToken() {
-  const data = await chrome.storage.local.get(['auth_token']);
-  if (!data.auth_token) {
-    throw new Error("No authentication token available");
+  try {
+    return await getAccessToken();
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    throw new Error('Authentication token unavailable');
   }
-  return data.auth_token;
 }
 
-// Initialize: Try to load auth data from storage when the module loads
-loadAuthData().catch(error => {
-  console.error('Failed to load authentication data:', error);
+// Initialize: Try to load auth state when the module loads
+loadAuthState().catch(error => {
+  console.error('Failed to initialize authentication:', error);
 });
