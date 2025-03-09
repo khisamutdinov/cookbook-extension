@@ -3,10 +3,11 @@
   "name": "Recipe Extractor",
   "version": "1.0",
   "permissions": [
-    "activeTab",
+    "activeTab", 
     "scripting",
     "storage",
-    "identity"
+    "identity",
+    "alarms"
   ],
   "host_permissions": [
     "https://cookbook-577683305271.us-west1.run.app/*",
