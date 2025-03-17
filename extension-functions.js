@@ -1,3 +1,6 @@
+// extension-functions.js
+import { getAuthToken } from "./google-auth.js";
+
 export function extractPageContent() {
   try {
     console.log("CEX: Processing html...");
@@ -23,7 +26,6 @@ export function extractPageContent() {
     });
 
     console.log("CEX: HTML is ready");
-    // console.log(cloneDoc.outerHTML);
     return cloneDoc.outerHTML;
   } catch (error) {
     console.error("Error in content script:", error);
@@ -32,16 +34,18 @@ export function extractPageContent() {
 }
 
 export async function processContent(tab, htmlContent) {
-  const token = "";
   const extensionId = chrome.runtime.id;
   const requestId = `${extensionId}-${Date.now()}`;
 
-  // First try the health endpoint to verify token works
   try {
+    // Get authentication token
+    const token = await getAuthToken();
+    console.log("Got auth token for API request");
+
     // Compress the HTML content before sending
     const compressedHtml = await compressHtml(htmlContent);
 
-    // Now try the recipe endpoint
+    // Make the API request
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage(
         {
@@ -50,13 +54,13 @@ export async function processContent(tab, htmlContent) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "Authorization": `Bearer ${token}`,
             "X-Extension-ID": extensionId,
             "X-Request-ID": requestId,
           },
           body: {
             url: tab.url,
-            html: compressedHtml, // Send compressed HTML
+            html: compressedHtml,
             title: tab.title,
           },
         },
@@ -67,10 +71,18 @@ export async function processContent(tab, htmlContent) {
     console.log("Recipe endpoint response:", response);
 
     if (!response.success) {
-      throw new Error(response.error || "Recipe request failed");
+      if (response.error && response.error.includes("authentication")) {
+        throw new Error("Authentication error. Please sign in again.");
+      } else {
+        throw new Error(response.error || "Recipe request failed");
+      }
     }
 
     const { data } = response;
+
+    if (data.status === 401 || data.status === 403) {
+      throw new Error("Authentication error. Please sign in again.");
+    }
 
     if (data.status !== 200) {
       throw new Error(
@@ -155,6 +167,12 @@ export function formatJson(obj) {
 
 // Add this function to extension-functions.js
 export async function compressHtml(htmlContent) {
+  // Check if CompressionStream API is available
+  if (typeof CompressionStream === 'undefined') {
+    console.error('CompressionStream API not supported');
+    throw new Error('Your browser does not support compression');
+  }
+
   // Convert to UTF-8 string
   const encoder = new TextEncoder();
   const data = encoder.encode(htmlContent);
